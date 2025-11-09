@@ -68,23 +68,53 @@ let locationError, locationButton, performersContainer, submitVoteButton, confir
 let studentIdError, studentIdInput, studentIdButton, showIdMode, showLocationMode;
 
 document.addEventListener("DOMContentLoaded", () => {
+  // --- 1. ASSIGN ALL DOM ELEMENTS ---
   locationError = document.getElementById("location-error");
   locationButton = document.getElementById("location-btn");
   performersContainer = document.getElementById("performers-container");
   submitVoteButton = document.getElementById("submit-vote-btn");
   confirmationMessage = document.getElementById("confirmation-message");
   confirmationImage = document.getElementById("confirmation-image");
-  
-  // NEW DOM Element assignments
   studentIdError = document.getElementById("student-id-error");
   studentIdInput = document.getElementById("student-id-input");
   studentIdButton = document.getElementById("student-id-btn");
   showIdMode = document.getElementById("show-id-mode");
   showLocationMode = document.getElementById("show-location-mode");
 
-  // Initial spinner until ready
+  // --- 2. SET INITIAL STATE (NOW SAFE) ---
   locationButton.disabled = true;
   locationButton.innerHTML = '<div class="spinner mx-auto"></div>';
+
+  // --- 3. SET UP AUTH LISTENER (NOW SAFE) ---
+  onAuthStateChanged(auth, async (u) => {
+    if (u && u.isAnonymous) { // Anonymous voter
+      console.log("Anonymous user signed in:", u.uid);
+      userId = u.uid; // Set the global userId for voting
+      if (!appInitialized) {
+        appInitialized = true;
+        initApp(); // initApp is now safe to call
+      }
+      await restoreVoteIfExists();
+    } else if (u && !u.isAnonymous) {
+      // This is the admin logging in
+      console.log("Admin user authenticated:", u.uid);
+      if (!appInitialized) {
+        appInitialized = true;
+        initApp(); // initApp is now safe to call
+      }
+    }
+  });
+
+  // --- 4. START THE APP (NOW SAFE) ---
+  // Sign in anonymously for the voting app portion.
+  signInAnonymously(auth).catch(console.error);
+
+  // Also, initialize the app immediately for the admin panel logic.
+  // This is now safe because all elements are loaded.
+  if (!appInitialized) {
+      appInitialized = true;
+      initApp();
+  }
 });
 
 /* ========= Helper Functions ========= */
@@ -432,6 +462,8 @@ getToken(appCheck)
   .catch(err => console.error("❌ App Check failed:", err));
 
 /* ========= Auth (UPDATED FOR TESTING) ========= */
+// This entire block is now moved inside the DOMContentLoaded listener.
+/*
 onAuthStateChanged(auth, async (u) => {
   if (u && u.isAnonymous) { // Anonymous voter
     console.log("Anonymous user signed in:", u.uid);
@@ -462,6 +494,7 @@ if (!appInitialized) {
     appInitialized = true;
     initApp();
 }
+*/
 </script>
 
 <style>
