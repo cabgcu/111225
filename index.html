@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Lip Sync 2025 Voting</title>
+<title>Lip Sync 2025 Voting (TEST MODE)</title>
 
 <meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -330,24 +330,15 @@ function initApp() {
     if (snap.exists()) votingEnabled = snap.data().enabled;
   });
 
-  // --- NEW: SECRET ADMIN PANEL LOGIC ---
+  // --- NEW: ADMIN PANEL LOGIC ---
   // We put this here so it has access to `auth` and `db`
   initAdminPanel();
 }
 
-/* ========= NEW: Admin Panel Uploader Function ========= */
+/* ========= NEW: Admin Panel Uploader Function (ALWAYS ON) ========= */
 function initAdminPanel() {
   const panel = document.getElementById('admin-panel');
-  if (!panel) return; // Not on admin page, do nothing.
-
-  // Check if we should show the admin panel
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.get('admin') !== 'true') {
-    return; // Do not show panel or add listeners
-  }
-  
-  // Show the panel
-  panel.classList.remove('hidden');
+  if (!panel) return; // Something is wrong
 
   // Get admin elements
   const loginBtn = document.getElementById('admin-login-btn');
@@ -358,8 +349,13 @@ function initAdminPanel() {
 
   function logStatus(msg, isError = false) {
     console.log(msg);
-    statusEl.innerHTML = (msg + "\n" + statusEl.innerHTML).substring(0, 3000); // Add to top
-    if (isError) statusEl.classList.add('text-red-400');
+    // Add to top, and limit to 3000 chars
+    statusEl.innerHTML = (msg + "\n" + statusEl.innerHTML).substring(0, 3000); 
+    if (isError) {
+        statusEl.classList.add('text-red-400');
+    } else {
+        statusEl.classList.remove('text-red-400');
+    }
   }
 
   // 1. Admin Login
@@ -370,7 +366,7 @@ function initAdminPanel() {
       adminUid = result.user.uid;
       logStatus(`✅ Logged in as: ${result.user.email}`);
       logStatus(`Your Admin UID is: ${adminUid}`);
-      logStatus(`---> NOW, UPDATE YOUR SECURITY RULES! <---`);
+      logStatus(`---> YOU CAN NOW USE THE UPLOADER. <---`);
       loginBtn.textContent = `Logged in as ${result.user.displayName}`;
       loginBtn.disabled = true;
       uploadBtn.disabled = false;
@@ -435,32 +431,36 @@ getToken(appCheck)
   .then(t => console.log("✅ App Check token issued:", t?.token?.slice(0, 25) + "..."))
   .catch(err => console.error("❌ App Check failed:", err));
 
-/* ========= Auth (UPDATED) ========= */
+/* ========= Auth (UPDATED FOR TESTING) ========= */
 onAuthStateChanged(auth, async (u) => {
-  if (u && u.isAnonymous) { // Only run for the anonymous voter
-    userId = u.uid;
+  if (u && u.isAnonymous) { // Anonymous voter
+    console.log("Anonymous user signed in:", u.uid);
+    userId = u.uid; // Set the global userId for voting
     if (!appInitialized) {
       appInitialized = true;
-      initApp(); // initApp now contains the admin logic too
+      initApp();
     }
-    // Now that we have a userId, try to restore vote
     await restoreVoteIfExists();
   } else if (u && !u.isAnonymous) {
-    // This is the admin logging in, do nothing here
+    // This is the admin logging in
     console.log("Admin user authenticated:", u.uid);
+    // We still init the app, which is fine
+    if (!appInitialized) {
+      appInitialized = true;
+      initApp();
+    }
   }
 });
-// We only sign in anonymously if we're not on the admin page
-const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.get('admin') !== 'true') {
-    signInAnonymously(auth).catch(console.error);
-} else {
-    // On admin page, wait for user to click "Login with Google"
-    // We still need to init the app for the admin panel logic
-    if (!appInitialized) {
-        appInitialized = true;
-        initApp();
-    }
+
+// ALWAYS sign in anonymously for the voting app portion.
+// The admin Google sign-in will work alongside this.
+signInAnonymously(auth).catch(console.error);
+
+// Also, initialize the app immediately in case anonymous auth is slow.
+// This gets the admin panel logic ready.
+if (!appInitialized) {
+    appInitialized = true;
+    initApp();
 }
 </script>
 
@@ -469,7 +469,9 @@ if (urlParams.get('admin') !== 'true') {
 html, body {
   margin: 0; height: 100%;
   font-family: 'Inter', sans-serif;
-  color: white; overflow: hidden;
+  color: white; 
+  /* Changed overflow: hidden to auto */
+  overflow: auto; 
   background-color: black;
 }
 #bg-video { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: 0; opacity: 0.8; }
@@ -495,7 +497,26 @@ button.glow { animation: pink-green-glow 8s ease-in-out infinite; }
 .spinner { border:3px solid rgba(255,255,255,0.15); border-top-color:#fff; border-radius:50%; width:22px;height:22px; animation:spin .9s linear infinite; margin:0 auto; }
 @keyframes spin{to{transform:rotate(360deg)}}
 #performers-container { overflow-y: auto; max-height: 60vh; padding-right: 4px; }
-.screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+/* Changed .screen to be relative for testing */
+.screen { 
+  position: relative; /* Changed from fixed */
+  z-index: 2;
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  padding: 1rem;
+  /* Added min-height to push screens apart */
+  min-height: 100vh;
+}
+/* This makes the login screen the default visible one */
+#login-screen {
+    display: flex;
+}
+/* We still hide the other screens by default */
+#voting-screen.hidden,
+#confirmation-screen.hidden {
+    display: none;
+}
 </style>
 </head>
 
@@ -503,6 +524,25 @@ button.glow { animation: pink-green-glow 8s ease-in-out infinite; }
 <video autoplay muted playsinline loop preload="auto" id="bg-video">
   <source src="https://i.imgur.com/mAzP2S1.mp4" type="video/mp4">
 </video>
+
+<!-- ========= ADMIN UPLOADER PANEL (ALWAYS VISIBLE FOR TESTING) ========= -->
+<div id="admin-panel" class="relative z-50 w-full max-w-2xl mx-auto my-8">
+  <div class="glass-card" style="padding: 20px;">
+    <h2 class="text-2xl font-bold mb-4">Admin ID Uploader (TEST MODE)</h2>
+    
+    <button id="admin-login-btn" class="w-full py-2 px-4 rounded-lg bg-blue-600 text-white mb-4">1. Log In with Google</button>
+    
+    <p class="text-white/70 mb-2">Paste your list of IDs here (one ID per line):</p>
+    <textarea id="id-textarea" rows="10" class="w-full p-2 rounded-lg bg-white/10 text-white border border-white/30 mb-4" placeholder="1234567\n1234568\n1234569\n..."></textarea>
+    
+    <button id="admin-upload-btn" class="w-full py-2 px-4 rounded-lg bg-green-600 text-white disabled:opacity-50" disabled>2. Start Batch Upload</button>
+    
+    <div id="admin-status" class="mt-4 p-4 bg-black/30 rounded-lg text-sm text-white/90" style="font-family: monospace; white-space: pre-wrap; max-height: 200px; overflow-y: auto;">
+      <p>Waiting to start...</p>
+    </div>
+  </div>
+</div>
+
 
 <!-- LOGIN (UPDATED) -->
 <div id="login-screen" class="screen">
@@ -523,7 +563,7 @@ button.glow { animation: pink-green-glow 8s ease-in-out infinite; }
       <div id="student-id-mode" class="hidden w-full">
         <p id="student-id-error" class="text-white/70 text-base mb-8 max-w-sm">Enter your Student ID to vote.</p>
         <input type="number" id="student-id-input" placeholder="Enter Student ID" class="w-full p-3 rounded-lg bg-white/10 text-white border border-white/30 text-center mb-4" />
-        <button id="student-id-btn" class_id="w-auto min-w-[180px] px-8 py-3 text-base text-white rounded-xl border border-white/50 shadow-lg transition duration-200"><span>Verify ID</span></button>
+        <button id="student-id-btn" class="w-auto min-w-[180px] px-8 py-3 text-base text-white rounded-xl border border-white/50 shadow-lg transition duration-200"><span>Verify ID</span></button>
         <a href="#" id="show-location-mode" class="block text-sm text-white/60 mt-4 underline">Vote with location instead.</a>
       </div>
 
@@ -563,24 +603,7 @@ button.glow { animation: pink-green-glow 8s ease-in-out infinite; }
   </div>
 </div>
 
-
-<!-- ========= NEW: ADMIN UPLOADER PANEL (HIDDEN) ========= -->
-<div id="admin-panel" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.95); z-index: 100; padding: 20px; overflow-y: auto;">
-  <div class="glass-card" style="margin: auto; max-width: 600px; padding: 20px;">
-    <h2 class="text-2xl font-bold mb-4">Secret Admin ID Uploader</h2>
-    
-    <button id="admin-login-btn" class="w-full py-2 px-4 rounded-lg bg-blue-600 text-white mb-4">1. Log In with Google</button>
-    
-    <p class="text-white/70 mb-2">Paste your list of 28,000 IDs here (one ID per line):</p>
-    <textarea id="id-textarea" rows="10" class="w-full p-2 rounded-lg bg-white/10 text-white border border-white/30 mb-4" placeholder="1234567\n1234568\n1234569\n..."></textarea>
-    
-    <button id="admin-upload-btn" class="w-full py-2 px-4 rounded-lg bg-green-600 text-white disabled:opacity-50" disabled>2. Start Batch Upload</button>
-    
-    <div id="admin-status" class="mt-4 p-4 bg-black/30 rounded-lg text-sm text-white/90" style="font-family: monospace; white-space: pre-wrap; max-height: 200px; overflow-y: auto;">
-      <p>Waiting to start...</p>
-    </div>
-  </div>
-</div>
+<!-- The old hidden admin panel is removed from here -->
 
 </body>
 </html>
